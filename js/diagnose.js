@@ -59,7 +59,7 @@ async function analyze() {
   if (!currentFile) return;
   $("analyze-btn").disabled = true;
   $("visuals").hidden = true;
-  $("result").innerHTML = `<div class="placeholder"><div class="spinner"></div><p>Preprocessing and grading the image…</p></div>`;
+  $("result").innerHTML = `<div class="placeholder"><div class="spinner"></div><p>Preprocessing and grading the image… (the first run also downloads the 16 MB model)</p></div>`;
   try {
     renderResult(await api.predict(currentFile));
   } catch (err) {
@@ -116,7 +116,7 @@ function renderResult(r) {
     <div class="advice">
       <strong>Typical findings at this stage</strong>
       <ul>${stage.findings.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
-      <p class="muted" style="margin-top:10px">Referable probability (grade ≥ 2): <strong>${pct(r.referable_probability)}</strong> · expected grade ${r.expected_grade.toFixed(2)} · model ${esc(r.arch)}</p>
+      <p class="muted" style="margin-top:10px">Referable probability (grade ≥ 2): <strong>${pct(r.referable_probability)}</strong> · expected grade ${r.expected_grade.toFixed(2)} · model ${esc(r.arch)}${r.inference_ms != null ? ` · ${r.inference_ms} ms` : ""}</p>
     </div>`;
 
   $("visuals").innerHTML = `

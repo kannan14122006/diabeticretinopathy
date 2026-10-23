@@ -52,10 +52,10 @@ async function pollHealth() {
     const h = await api.health();
     pill.className = `status-pill ${h.model_loaded ? "ok" : "warn"}`;
     text.textContent = h.model_loaded ? `Model ready · ${h.arch} · ${h.device}` : "API up · model not trained";
-    pill.title = h.model_error || "Backend connected";
+    pill.title = h.model_error || (api.mode === "browser" ? "AI runs in your browser. Images never leave this device." : "Backend connected");
   } catch (err) {
     pill.className = "status-pill bad";
-    text.textContent = "API offline";
+    text.textContent = api.mode === "browser" ? "Model failed to load" : "API offline";
     pill.title = err.message;
   }
 }
@@ -68,5 +68,5 @@ initDiagnose();
 renderStages();
 window.addEventListener("hashchange", () => show(location.hash.slice(1)));
 show(location.hash.slice(1));
-pollHealth();
-setInterval(pollHealth, 15000);
+pollHealth(); // in browser mode this also starts downloading the model in the background
+setInterval(pollHealth, api.mode === "browser" ? 60000 : 15000);

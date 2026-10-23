@@ -1,16 +1,17 @@
-// Backend base URL.
-// Override without editing code: open the site with ?api=https://your-backend-url
-// (the choice is remembered in this browser). Default is a backend running locally.
-const DEFAULT_API_URL = "http://localhost:8000";
-
+// Where predictions run.
+//   Default: in the browser (onnxruntime-web). No backend needed, works on GitHub Pages.
+//   Optional: a dr-backend server. Open the site with ?api=https://your-backend-url
+//   (remembered in this browser). ?api=local switches back to in-browser mode.
 function resolveApiUrl() {
   const fromQuery = new URLSearchParams(location.search).get("api");
   try {
-    if (fromQuery) localStorage.setItem("dr_api_url", fromQuery);
-    return (fromQuery || localStorage.getItem("dr_api_url") || DEFAULT_API_URL).replace(/\/+$/, "");
+    if (fromQuery === "local") localStorage.removeItem("dr_api_url");
+    else if (fromQuery) localStorage.setItem("dr_api_url", fromQuery);
+    return (localStorage.getItem("dr_api_url") || "").replace(/\/+$/, "");
   } catch {
-    return (fromQuery || DEFAULT_API_URL).replace(/\/+$/, "");
+    return fromQuery && fromQuery !== "local" ? fromQuery.replace(/\/+$/, "") : "";
   }
 }
 
+// Empty string = in-browser mode.
 export const API_URL = resolveApiUrl();

@@ -1,0 +1,14 @@
+{
+  "arch": "efficientnet_b0",
+  "image_size": 224,
+  "classes": [
+    "No DR",
+    "Mild",
+    "Moderate",
+    "Severe",
+    "Proliferative DR"
+  ],
+  "epoch": 11,
+  "val_kappa": 0.7256939520387379,
+  "referable_from_grade": 2
+}
