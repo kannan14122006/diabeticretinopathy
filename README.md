@@ -1,6 +1,6 @@
 # Diabetic Retinopathy Classifier: Frontend
 
-A web UI for the DR grading backend (`dr-backend` repo). It uses plain HTML, CSS and JavaScript (ES modules) and Chart.js, so there is no build step and Node.js is not required.
+A web UI for the DR grading backend: https://github.com/kannan14122006/dr-backend It uses plain HTML, CSS and JavaScript (ES modules) and Chart.js, so there is no build step and Node.js is not required.
 
 ## Pages
 
