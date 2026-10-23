@@ -54,8 +54,94 @@ async function decodeImage(file) {
   canvas.height = h;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(bitmap, 0, 0, w, h);
+
+  // Small copy for the fundus check (same 256px analysis size as app/fundus_check.py).
+  const s = Math.min(1, ANALYSIS_SIZE / Math.max(bitmap.width, bitmap.height));
+  const sw = Math.max(1, Math.round(bitmap.width * s));
+  const sh = Math.max(1, Math.round(bitmap.height * s));
+  const small = document.createElement("canvas");
+  small.width = sw;
+  small.height = sh;
+  const sctx = small.getContext("2d", { willReadFrequently: true });
+  sctx.imageSmoothingQuality = "high";
+  sctx.drawImage(bitmap, 0, 0, sw, sh);
   bitmap.close?.();
-  return { data: ctx.getImageData(0, 0, w, h).data, w, h };
+
+  return {
+    data: ctx.getImageData(0, 0, w, h).data, w, h,
+    small: { data: sctx.getImageData(0, 0, sw, sh).data, w: sw, h: sh },
+  };
+}
+
+// ---------- "is this a fundus photo?" check (mirrors dr-backend/app/fundus_check.py) ----------
+
+const ANALYSIS_SIZE = 256;
+const FUNDUS_REASONS = {
+  shape: "The image isn't the round, roughly square shape of a fundus photo.",
+  no_dark_border: "No dark border around a round retina disk was found.",
+  colour: "The colours don't match a retina (expected orange-red tones).",
+  too_dark: "The retina area is too dark to grade (poor image quality).",
+};
+
+function fundusFeatures({ data, w, h }) {
+  const gray = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) {
+    gray[p] = (data[p * 4] * 4899 + data[p * 4 + 1] * 9617 + data[p * 4 + 2] * 1868 + 8192) >> 14;
+  }
+  let top = h, bottom = -1, left = w, right = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (gray[y * w + x] > 7) {
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+        if (x < left) left = x;
+        if (x > right) right = x;
+      }
+    }
+  }
+  if (bottom < 0) return null;
+
+  const cw = right - left + 1, ch = bottom - top + 1;
+  const r2 = (cw / 2) ** 2;
+  let inside = 0, outside = 0, dark = 0, bright = 0, R = 0, G = 0, B = 0;
+  for (let y = 0; y < ch; y++) {
+    for (let x = 0; x < cw; x++) {
+      const p = (top + y) * w + (left + x);
+      const g = gray[p];
+      if ((x + 0.5 - cw / 2) ** 2 + (y + 0.5 - ch / 2) ** 2 <= r2) {
+        inside++;
+        if (g > 25) {
+          bright++;
+          R += data[p * 4];
+          G += data[p * 4 + 1];
+          B += data[p * 4 + 2];
+        }
+      } else {
+        outside++;
+        if (g <= 25) dark++;
+      }
+    }
+  }
+  if (bright) { R /= bright; G /= bright; B /= bright; }
+  return {
+    aspect: cw / ch,
+    border_dark: outside > 50 ? dark / outside : 1,
+    disk_fill: bright / Math.max(1, inside),
+    red_share: R / Math.max(1, R + G + B),
+    r_gt_g: R - G,
+    g_gt_b: G - B,
+  };
+}
+
+function fundusProblems(small) {
+  const f = fundusFeatures(small);
+  if (!f) return ["too_dark"];
+  const problems = [];
+  if (f.aspect < 0.9 || f.aspect > 1.55) problems.push("shape");
+  if (f.border_dark < 0.8) problems.push("no_dark_border");
+  if (f.r_gt_g < -5 || f.g_gt_b < -6 || f.red_share < 0.33) problems.push("colour");
+  if (f.disk_fill < 0.15) problems.push("too_dark");
+  return problems;
 }
 
 // Bounding box of pixels brighter than the black border (OpenCV RGB2GRAY fixed-point formula).
@@ -188,12 +274,20 @@ function heatmap(cams, dims, grade, size) {
 
 // ---------- public API (same response shape as the backend's /api/predict) ----------
 
-export async function predictInBrowser(file) {
+export async function predictInBrowser(file, { force = false } = {}) {
   const started = performance.now();
+  const img = await decodeImage(file);
+
+  const problems = force ? [] : fundusProblems(img.small);
+  if (problems.length) {
+    const err = new Error("This doesn't look like a retinal fundus photograph.");
+    err.status = 422;
+    err.reasons = problems.map((p) => FUNDUS_REASONS[p]);
+    throw err;
+  }
+
   const { session, info } = await loadModel();
   const size = info.image_size;
-
-  const img = await decodeImage(file);
   const { rgb, chw } = cropResize(img, cropBox(img), size);
 
   const out = await session.run({ image: new ort.Tensor("float32", chw, [1, 3, size, size]) });

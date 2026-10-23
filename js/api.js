@@ -2,9 +2,10 @@ import { API_URL } from "./config.js";
 import { browserHealth, predictInBrowser } from "./inference.js";
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, reasons = []) {
     super(message);
     this.status = status;
+    this.reasons = reasons;
   }
 }
 
@@ -16,7 +17,11 @@ async function request(url, options) {
     throw new ApiError(API_URL ? `Cannot reach the backend at ${API_URL}. Is it running?` : "Network error. Check your connection.", 0);
   }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(body.detail || `Request failed (${res.status})`, res.status);
+  if (!res.ok) {
+    const d = body.detail;
+    if (d && typeof d === "object" && !Array.isArray(d)) throw new ApiError(d.message, res.status, d.reasons || []);
+    throw new ApiError(typeof d === "string" ? d : `Request failed (${res.status})`, res.status);
+  }
   return body;
 }
 
@@ -25,7 +30,7 @@ const wrap = (fn) => async (...args) => {
   try {
     return await fn(...args);
   } catch (err) {
-    throw err instanceof ApiError ? err : new ApiError(err.message || String(err), 500);
+    throw err instanceof ApiError ? err : new ApiError(err.message || String(err), err.status ?? 500, err.reasons || []);
   }
 };
 
@@ -34,10 +39,10 @@ const remote = {
   health: () => request(`${API_URL}/api/health`),
   datasetStats: () => request(`${API_URL}/api/dataset/stats`),
   metrics: () => request(`${API_URL}/api/model/metrics`),
-  predict: (file) => {
+  predict: (file, { force = false } = {}) => {
     const form = new FormData();
     form.append("file", file);
-    return request(`${API_URL}/api/predict`, { method: "POST", body: form });
+    return request(`${API_URL}/api/predict${force ? "?force=true" : ""}`, { method: "POST", body: form });
   },
 };
 

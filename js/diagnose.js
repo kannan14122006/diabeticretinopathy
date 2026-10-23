@@ -20,7 +20,7 @@ export function initDiagnose() {
     if (file) selectFile(file);
   });
 
-  $("analyze-btn").addEventListener("click", analyze);
+  $("analyze-btn").addEventListener("click", () => analyze());
   $("clear-btn").addEventListener("click", clear);
 }
 
@@ -55,25 +55,40 @@ function clear() {
   $("result").innerHTML = `<div class="placeholder"><p>Choose an image to grade.</p></div>`;
 }
 
-async function analyze() {
+async function analyze(force = false) {
   if (!currentFile) return;
   $("analyze-btn").disabled = true;
   $("visuals").hidden = true;
-  $("result").innerHTML = `<div class="placeholder"><div class="spinner"></div><p>Preprocessing and grading the image… (the first run also downloads the 16 MB model)</p></div>`;
+  $("result").innerHTML = `<div class="placeholder"><div class="spinner"></div><p>Checking and grading the image… (the first run also downloads the 16 MB model)</p></div>`;
   try {
-    renderResult(await api.predict(currentFile));
+    renderResult(await api.predict(currentFile, { force }), force);
   } catch (err) {
-    showError(err.message, err.status === 503);
+    if (err.status === 422) showNotFundus(err);
+    else showError(err.message, err.status === 503);
   } finally {
     $("analyze-btn").disabled = !currentFile;
   }
+}
+
+function showNotFundus(err) {
+  $("result").innerHTML = `
+    <div class="banner warn">
+      <div>
+        <strong>${esc(err.message)}</strong>
+        This tool only grades retinal fundus photographs: a round, orange-red view of the back of the eye on a dark background, taken with a fundus camera.
+        ${err.reasons.length ? `<ul>${err.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
+      </div>
+    </div>
+    <p class="muted">Screenshots, documents, spreadsheets and ordinary photos can't be graded. If this really is a fundus photo (for example a very dark or unusual one), you can still grade it, but the result may be unreliable.</p>
+    <button class="btn ghost" id="force-btn">Grade anyway</button>`;
+  $("force-btn").addEventListener("click", () => analyze(true));
 }
 
 function showError(message, notTrained = false) {
   $("result").innerHTML = `<div class="banner error"><div><strong>${notTrained ? "Model not available" : "Couldn't analyze the image"}</strong>${esc(message)}</div></div>`;
 }
 
-function renderResult(r) {
+function renderResult(r, forced = false) {
   const stage = STAGES[r.grade];
   const sorted = [...r.probabilities].sort((a, b) => b.probability - a.probability);
   const runnerUp = sorted[1];
@@ -93,6 +108,9 @@ function renderResult(r) {
     ${r.referable
       ? `<div class="banner refer"><div><strong>Referable DR: refer to an ophthalmologist</strong>${esc(stage.action)}</div></div>`
       : `<div class="banner ok"><div><strong>Non-referable</strong>${esc(stage.action)}</div></div>`}
+
+    ${forced ? `<div class="banner warn"><div><strong>Graded anyway</strong>This image didn't pass the fundus photo check, so treat this result with caution.</div></div>` : ""}
+    ${!forced && r.confidence < 0.45 ? `<div class="banner warn"><div><strong>Low confidence</strong>The model is unsure between ${esc(stage.name)} and ${esc(STAGES[runnerUp.grade].name)}. A sharper, well-lit image may give a clearer result.</div></div>` : ""}
 
     <div class="scale" aria-label="Severity scale">
       <div class="scale-track">

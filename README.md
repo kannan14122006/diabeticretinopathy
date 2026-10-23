@@ -19,6 +19,7 @@ Training code, the model and the optional REST API are in the backend repo: http
 
 ## How in-browser inference works
 
+0. **Fundus check:** images that don't look like a retinal fundus photo (screenshots, documents, spreadsheets, ordinary photos) are rejected with reasons, and a *Grade anyway* option is offered. It is tested on 3,000 held-out EyePACS images (1.1% flagged, mostly very dark or ungradable) and 38 non-fundus images (all rejected).
 1. The image is decoded, the black border is cropped, and the image is area-resized to 224×224 (`js/inference.js`, which mirrors `dr-backend/app/preprocess.py`).
 2. `models/dr_model.onnx` (EfficientNet-B0, 16 MB) contains the rest of the pipeline: local-average colour subtraction, the retina-disk mask, ImageNet normalisation, the classifier, and class activation maps for the heatmap.
 3. The browser predictions were checked against the original PyTorch pipeline and gave the same grade on every test image (maximum probability difference < 0.02).

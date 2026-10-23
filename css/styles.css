@@ -161,6 +161,8 @@ main { width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 24px 40px; 
 .banner.refer { background: color-mix(in srgb, var(--bad) 12%, transparent); border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent); }
 .banner.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); }
 .banner.error { background: color-mix(in srgb, var(--bad) 10%, transparent); border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent); }
+.banner.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+.banner ul { margin: 8px 0 0; padding-left: 18px; }
 
 .scale { margin: 18px 0 8px; }
 .scale-track { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
